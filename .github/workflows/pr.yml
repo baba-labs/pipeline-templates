@@ -1,0 +1,23 @@
+name: PR
+
+# This repository lints itself with its own reusable workflow, using a local
+# reference. It is the cheapest way to find out that a change here is broken
+# before it breaks every repository that pins the tag.
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+    permissions:
+      contents: read
+      pull-requests: read
