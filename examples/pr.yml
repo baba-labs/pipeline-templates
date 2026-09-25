@@ -1,0 +1,33 @@
+# Example: the pull request workflow for a consuming repository.
+#
+# Copy to .github/workflows/pr.yml in your repository.
+name: PR
+
+on:
+  pull_request:
+    branches: [main]
+
+# Belongs in the caller, not the reusable workflow: cancels superseded runs when
+# someone pushes twice in a minute, which is most of the minutes you will save.
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    uses: baba-labs/pipeline-templates/.github/workflows/lint.yml@v1
+    permissions:
+      contents: read
+      pull-requests: read
+
+  # A repository with no Terraform needs no configuration — the Terraform jobs
+  # detect their own irrelevance and skip. Override only to be explicit:
+  #
+  # lint:
+  #   uses: baba-labs/pipeline-templates/.github/workflows/lint.yml@v1
+  #   with:
+  #     terraform: 'false'
+  #     commit-lint: true      # only if this repo uses merge or rebase-merge
