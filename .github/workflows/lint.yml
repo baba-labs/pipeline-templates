@@ -1,0 +1,287 @@
+name: Lint Workflow
+
+on:
+  # Reusable workflow interface only (called by other workflows)
+  workflow_call:
+    inputs:
+      terraform:
+        description: "Run Terraform checks: auto (detect *.tf), true, or false"
+        required: false
+        type: string
+        default: "auto"
+      terraform-version:
+        description: "Terraform version used for fmt and validate"
+        required: false
+        type: string
+        default: "latest"
+      terraform-docs-dir:
+        description: "Directory terraform-docs runs against"
+        required: false
+        type: string
+        default: "."
+      prettier:
+        description: "Run Prettier formatting check"
+        required: false
+        type: boolean
+        default: true
+      markdown:
+        description: "Run markdownlint"
+        required: false
+        type: boolean
+        default: true
+      pr-title-lint:
+        description: "Lint the PR title as a Conventional Commit. This is what lands on main under squash merge."
+        required: false
+        type: boolean
+        default: true
+      commit-lint:
+        description: "Also lint every commit on the branch. Only meaningful for repos using merge or rebase-merge."
+        required: false
+        type: boolean
+        default: false
+      node-version:
+        description: "Node version used for Prettier and commitlint"
+        required: false
+        type: string
+        default: "22"
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Works out what this repository actually contains, so callers do not have to
+  # configure what can be observed. The decision is written to the run summary —
+  # a check that skips silently is a check you wrongly believe is running.
+  # ---------------------------------------------------------------------------
+  detect:
+    name: Detect
+    runs-on: ubuntu-latest
+    outputs:
+      terraform: ${{ steps.detect.outputs.terraform }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Detect languages and tooling
+        id: detect
+        run: |
+          if [ "${{ inputs.terraform }}" != "auto" ]; then
+            TF="${{ inputs.terraform }}"
+            REASON="explicitly set by the caller"
+          elif find . -name '*.tf' -not -path './.git/*' -print -quit | grep -q .; then
+            TF="true"
+            REASON="*.tf files found"
+          else
+            TF="false"
+            REASON="no *.tf files found"
+          fi
+          echo "terraform=$TF" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Lint scope"
+            echo ""
+            echo "| Check | Running | Why |"
+            echo "|---|---|---|"
+            echo "| Prettier | ${{ inputs.prettier }} | caller input |"
+            echo "| markdownlint | ${{ inputs.markdown }} | caller input |"
+            echo "| Terraform fmt / validate / docs / tflint | $TF | $REASON |"
+            echo "| PR title lint | ${{ inputs.pr-title-lint }} | caller input |"
+            echo "| Commit lint | ${{ inputs.commit-lint }} | caller input |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Prettier and markdownlint read config from the repository being linted.
+  # Each job uses the repository's own config when present, and falls back to the
+  # shared default otherwise — logging which one it used either way.
+  # ---------------------------------------------------------------------------
+  prettier:
+    name: Prettier
+    if: inputs.prettier
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Resolve Prettier config
+        run: |
+          if ls .prettierrc* .prettierrc.* prettier.config.* >/dev/null 2>&1; then
+            echo "::notice::Using this repository's own Prettier config"
+          else
+            echo "::notice::No Prettier config in this repository — using the BaBa Labs shared default"
+            cat > .prettierrc <<'CFG'
+          {
+            "printWidth": 100,
+            "semi": true,
+            "singleQuote": false,
+            "trailingComma": "all",
+            "endOfLine": "lf"
+          }
+          CFG
+          fi
+          if [ ! -f .prettierignore ]; then
+            cat > .prettierignore <<'CFG'
+          node_modules/
+          .terraform/
+          bin/
+          obj/
+          dist/
+          .next/
+          package-lock.json
+          CHANGELOG.md
+          CFG
+          fi
+
+      - name: Check formatting
+        run: npx --yes prettier@3 --check .
+
+  markdown:
+    name: Markdown
+    if: inputs.markdown
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Resolve markdownlint config
+        run: |
+          if ls .markdownlint* >/dev/null 2>&1; then
+            echo "::notice::Using this repository's own markdownlint config"
+          else
+            echo "::notice::No markdownlint config in this repository — using the BaBa Labs shared default"
+            cat > .markdownlint-cli2.yaml <<'CFG'
+          config:
+            MD013: false          # line length — prose wraps where it reads best
+            MD033: false          # inline HTML — used deliberately in docs
+            MD041: false          # first line need not be a heading (frontmatter)
+            MD024:
+              siblings_only: true # ADRs repeat Context / Decision / Consequences
+            MD060: false          # table pipe spacing — |---|---| is valid and universal
+          globs:
+            - "**/*.md"
+          ignores:
+            - "node_modules/**"
+            - "CHANGELOG.md"      # generated by release-please
+          CFG
+          fi
+
+      - uses: DavidAnson/markdownlint-cli2-action@4580e1612f6407034edd6c0e4e316d725920867b # v24.2.0
+
+  # ---------------------------------------------------------------------------
+  # Terraform. Skipped entirely when the repository has no .tf files.
+  # ---------------------------------------------------------------------------
+  terraform-fmt:
+    name: Terraform fmt
+    needs: detect
+    if: needs.detect.outputs.terraform == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+          terraform_wrapper: false
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive -diff
+
+  terraform-validate:
+    name: Terraform validate
+    needs: detect
+    if: needs.detect.outputs.terraform == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+          terraform_wrapper: false
+
+      - name: terraform init and validate
+        run: |
+          # -backend=false: validation must not need credentials or remote state
+          terraform init -backend=false -input=false
+          terraform validate -no-color
+
+  terraform-docs:
+    name: Terraform docs
+    needs: detect
+    if: needs.detect.outputs.terraform == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check generated docs are current
+        uses: terraform-docs/gh-actions@6de6da0cefcc6b4b7a5cbea4d79d97060733093c # v1.4.1
+        with:
+          working-dir: ${{ inputs.terraform-docs-dir }}
+          output-file: README.md
+          output-method: inject
+          output-check: true
+
+  tflint:
+    name: TFLint
+    needs: detect
+    if: needs.detect.outputs.terraform == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: terraform-linters/setup-tflint@1cf010d3c7aef302051ccdb68c14c5dc2efa34ef # v6.3.1
+
+      - name: tflint
+        run: |
+          tflint --init
+          tflint --recursive --format compact
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # plugin downloads are rate-limited without it
+
+  # ---------------------------------------------------------------------------
+  # Conventional Commits.
+  #
+  # Under squash merge the PR title becomes the commit on main, and that is what
+  # release-please parses to decide the version bump. So the PR title is the
+  # check that matters; branch commits are noise that never lands.
+  # commit-lint is for repos using merge or rebase-merge, where they do.
+  # ---------------------------------------------------------------------------
+  commits:
+    name: Conventional Commits
+    if: github.event_name == 'pull_request' && (inputs.pr-title-lint || inputs.commit-lint)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Lint PR title
+        if: inputs.pr-title-lint
+        uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          subjectPattern: '^(?![A-Z])(?!.*\.$).+$'
+          subjectPatternError: |
+            The subject "{subject}" must start lowercase and must not end with a full stop.
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: inputs.commit-lint
+        with:
+          fetch-depth: 0
+
+      - name: Lint branch commits
+        if: inputs.commit-lint
+        uses: wagoid/commitlint-github-action@6cf16efdf4da5277c791d335142c03a0bdf1766e # v6.2.1

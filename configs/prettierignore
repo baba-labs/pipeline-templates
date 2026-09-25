@@ -1,0 +1,8 @@
+node_modules/
+.terraform/
+bin/
+obj/
+dist/
+.next/
+package-lock.json
+CHANGELOG.md
