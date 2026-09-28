@@ -15,6 +15,9 @@ cp configs/markdownlint-cli2.yaml   .markdownlint-cli2.yaml
 **Copy them when you intend to diverge.** If you are happy with the defaults, do not copy
 them — an uncopied default follows this repository, and a copied one silently stops.
 
+The root [pre-commit configuration](../.pre-commit-config.yaml) uses these same files,
+so local formatting and Markdown checks match the reusable workflow.
+
 ## Why these settings
 
 **Prettier `printWidth: 100`** — wide enough that prose and TypeScript both read well,
