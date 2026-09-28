@@ -31,20 +31,23 @@ Install both the pre-commit and commit-message hooks:
 pre-commit install --install-hooks
 ```
 
-Run the complete suite once before opening a pull request:
+Run the file-oriented suite once before opening a pull request:
 
 ```bash
 pre-commit run --all-files
 ```
 
-The hooks enforce:
+This runs every hook staged as `pre-commit` — it does not include the commitlint hook,
+which only runs at the `commit-msg` stage (see below), since there is no single commit
+message to validate against every file in the repository.
+
+The file-oriented hooks enforce:
 
 - safe repository basics, including conflict markers, valid YAML/JSON, file size limits,
   LF line endings, and private-key detection;
 - broad secret detection;
 - Prettier and Markdown formatting;
-- GitHub Actions schema validation and actionlint;
-- Conventional Commit messages.
+- GitHub Actions schema validation and actionlint.
 
 Formatting hooks update files in place. Review and stage those changes, then commit
 again. Use `pre-commit autoupdate` when intentionally updating hook versions.
@@ -59,8 +62,19 @@ fix(release): preserve the moving major tag
 docs: explain reusable workflow permissions
 ```
 
-The type and subject must be lowercase, the subject must not end with a full stop, and
-the complete header must not exceed 100 characters.
+The type must be one of `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`,
+`refactor`, `revert`, `style` or `test`. The subject must not be sentence case, Start
+Case, PascalCase or UPPERCASE (`Add x` and `ADD X` are rejected; `add x` and `add X` are
+both fine), must not end with a full stop, and the complete header must not exceed 100
+characters. See `commitlint.config.cjs` for the exact rules.
+
+To check a commit message without making a commit, write it to a file and pass that
+file's path (`--commit-msg-filename -` is not supported; it silently skips validation):
+
+```bash
+echo "feat: add example" > /tmp/msg.txt
+pre-commit run commitlint --hook-stage commit-msg --commit-msg-filename /tmp/msg.txt
+```
 
 Git permits bypassing hooks with `--no-verify`, but that should only be used to recover
 from a broken local toolchain. Pull-request checks remain authoritative.
