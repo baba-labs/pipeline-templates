@@ -1,0 +1,6 @@
+ci:
+  autofix_commit_msg: "style: apply pre-commit fixes"
+  autofix_prs: true
+  autoupdate_commit_msg: "chore(deps): update pre-commit hooks"
+  autoupdate_schedule: monthly
+  submodules: false

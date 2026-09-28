@@ -85,8 +85,9 @@ answer you want ready when a client's security questionnaire asks about supply c
 
 ## Contributing
 
-Conventions are in the organisation-wide
-[CONTRIBUTING.md](https://github.com/baba-labs/.github/blob/main/CONTRIBUTING.md).
+Start with this repository's [contributing guide](CONTRIBUTING.md), which includes the
+cross-platform pre-commit setup. Organisation-wide conventions remain in
+[baba-labs/.github](https://github.com/baba-labs/.github/blob/main/CONTRIBUTING.md).
 
 Changing a workflow here changes CI for every repository that pins the tag you release
 it under. Breaking changes need a major version, and `!` or a `BREAKING CHANGE:` footer
