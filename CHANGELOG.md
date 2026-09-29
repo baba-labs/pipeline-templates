@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/baba-labs/pipeline-templates/compare/v1.1.0...v1.1.1) (2026-09-29)
+
+
+### 📖 Documentation
+
+* add CLAUDE.md with guidance for Claude Code ([#7](https://github.com/baba-labs/pipeline-templates/issues/7)) ([36ab4f5](https://github.com/baba-labs/pipeline-templates/commit/36ab4f5d3a8b6b3abbda783c31643e3320a33f4c))
+
 ## [1.1.0](https://github.com/baba-labs/pipeline-templates/compare/v1.0.0...v1.1.0) (2026-09-28)
 
 
