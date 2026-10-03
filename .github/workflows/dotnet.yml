@@ -85,6 +85,13 @@ jobs:
           cache: ${{ inputs.nuget-cache }}
           cache-dependency-path: ${{ inputs.nuget-lock-files }}
 
+      - name: Resolve .NET paths
+        run: |
+          SOLUTION_PATH=$(realpath "$SOLUTION")
+          GLOBAL_JSON_PATH=$(realpath "$GLOBAL_JSON")
+          echo "SOLUTION=$SOLUTION_PATH" >> "$GITHUB_ENV"
+          echo "SDK_DIRECTORY=$(dirname "$GLOBAL_JSON_PATH")" >> "$GITHUB_ENV"
+
       # .NET 10 runs tests on either VSTest or Microsoft.Testing.Platform, chosen by
       # global.json, and the two take the solution differently. Read the choice
       # rather than asking callers to repeat it, and say what was found.
@@ -109,26 +116,35 @@ jobs:
         env:
           LOCKED: ${{ inputs.locked-restore }}
         run: |
+          cd "$SDK_DIRECTORY"
           if [ "$LOCKED" = "true" ]; then
-            dotnet restore "$SOLUTION" --locked-mode
+            dotnet restore "$SOLUTION" --property:Configuration="$CONFIGURATION" --locked-mode
           else
-            dotnet restore "$SOLUTION"
+            dotnet restore "$SOLUTION" --property:Configuration="$CONFIGURATION"
           fi
 
       - name: Build
-        run: dotnet build "$SOLUTION" --configuration "$CONFIGURATION" --no-restore
+        run: |
+          cd "$SDK_DIRECTORY"
+          dotnet build "$SOLUTION" --configuration "$CONFIGURATION" --no-restore
 
       - name: Verify formatting and code style
         if: inputs.verify-format
-        run: dotnet format "$SOLUTION" --verify-no-changes --no-restore
+        run: |
+          cd "$SDK_DIRECTORY"
+          dotnet format "$SOLUTION" --verify-no-changes --no-restore
 
       - name: Test
         if: inputs.test
         env:
           RUNNER: ${{ steps.detect.outputs.runner }}
         run: |
+          cd "$SDK_DIRECTORY"
           if [ "$RUNNER" = "Microsoft.Testing.Platform" ]; then
-            dotnet test --solution "$SOLUTION" --configuration "$CONFIGURATION" --no-build
+            case "$SOLUTION" in
+              *.sln|*.slnx) dotnet test --solution "$SOLUTION" --configuration "$CONFIGURATION" --no-build ;;
+              *) dotnet test --project "$SOLUTION" --configuration "$CONFIGURATION" --no-build ;;
+            esac
           else
             dotnet test "$SOLUTION" --configuration "$CONFIGURATION" --no-build
           fi

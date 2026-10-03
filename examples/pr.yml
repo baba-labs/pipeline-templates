@@ -47,3 +47,6 @@ jobs:
     uses: baba-labs/pipeline-templates/.github/workflows/dotnet.yml@v1
     with:
       solution: MyApp.slnx
+      # For a project under src/, use solution: src/MyApp/MyApp.csproj
+      # If its SDK is pinned there, set global-json-file: src/global.json
+      # Set configuration: Debug if your repository needs a different build configuration

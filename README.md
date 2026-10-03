@@ -101,8 +101,8 @@ repository declares. GitHub Actions sets `CI=true`, which a repository can use t
 
 | Input                   | Default                 | What it does                                                       |
 | ----------------------- | ----------------------- | ------------------------------------------------------------------ |
-| `configuration`         | `Release`               | Build and test configuration                                       |
-| `global-json-file`      | `global.json`           | Pins the SDK; also read to detect the test runner                  |
+| `configuration`         | `Release`               | Restore, build and test configuration                              |
+| `global-json-file`      | `global.json`           | Pins the SDK, selects the .NET working directory and test runner   |
 | `locked-restore`        | `true`                  | `dotnet restore --locked-mode`; a stale `packages.lock.json` fails |
 | `nuget-cache`           | `true`                  | Caches NuGet packages, keyed on `nuget-lock-files`                 |
 | `nuget-lock-files`      | `**/packages.lock.json` | Lock files used as the cache key                                   |
@@ -112,9 +112,15 @@ repository declares. GitHub Actions sets `CI=true`, which a repository can use t
 `locked-restore` and `nuget-cache` need lock files (`RestorePackagesWithLockFile`). Turn
 both off for a repository without them.
 
+`solution` accepts a solution (`.sln` or `.slnx`) or a project (such as `.csproj`),
+relative to the repository root or as an absolute path. `global-json-file` may point
+to a nested `global.json`; .NET commands run from its directory so the same SDK is
+used throughout, while the solution or project path still resolves from the root.
+
 The test runner is detected, not configured: when `global.json` sets `test.runner` to
-`Microsoft.Testing.Platform` the workflow runs `dotnet test --solution …`, otherwise
-`dotnet test …` (VSTest). The run summary records what it found and which steps ran.
+`Microsoft.Testing.Platform` the workflow runs `dotnet test --solution …` for solutions
+or `dotnet test --project …` for projects; otherwise it runs `dotnet test …` (VSTest).
+The run summary records what it found and which steps ran.
 
 ## Conventional Commits
 
