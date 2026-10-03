@@ -1,0 +1,5 @@
+# Top-level development tools. requirements-dev.txt is the hash-locked resolution of this file:
+#   pip-compile --generate-hashes --allow-unsafe --strip-extras --no-emit-index-url \
+#     --output-file requirements-dev.txt requirements-dev.in
+# Install with: python -m pip install --require-hashes --only-binary :all: -r requirements-dev.txt
+pre-commit==4.5.1

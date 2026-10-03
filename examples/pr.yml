@@ -31,3 +31,22 @@ jobs:
   #   with:
   #     terraform: 'false'
   #     commit-lint: true      # only if this repo uses merge or rebase-merge
+
+  # Runs every hook in .pre-commit-config.yaml over all files — the same checks
+  # contributors run locally, including secret detection and actionlint.
+  # requirements-dev.txt must be hash-locked (pip-compile --generate-hashes).
+  pre-commit:
+    uses: baba-labs/pipeline-templates/.github/workflows/pre-commit.yml@v1
+    # with:
+    #   skip-hooks: dotnet-format   # covered by the dotnet job below
+
+  # .NET repositories only: locked restore, build, dotnet format verification
+  # and tests. The test runner (VSTest or Microsoft.Testing.Platform) is read
+  # from global.json.
+  dotnet:
+    uses: baba-labs/pipeline-templates/.github/workflows/dotnet.yml@v1
+    with:
+      solution: MyApp.slnx
+      # For a project under src/, use solution: src/MyApp/MyApp.csproj
+      # If its SDK is pinned there, set global-json-file: src/global.json
+      # Set configuration: Debug if your repository needs a different build configuration
