@@ -1,0 +1,97 @@
+minimum_pre_commit_version: "4.0.0"
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+default_stages:
+  - pre-commit
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args:
+          - --maxkb=1000
+      - id: check-case-conflict
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-yaml
+      - id: destroyed-symlinks
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: forbid-submodules
+      - id: mixed-line-ending
+        args:
+          - --fix=lf
+      - id: trailing-whitespace
+        args:
+          - --markdown-linebreak-ext=md
+
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.38.2
+    hooks:
+      - id: check-github-workflows
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+
+  - repo: local
+    hooks:
+      - id: prettier
+        name: Format supported files with Prettier
+        entry: prettier
+        args:
+          - --config
+          - configs/prettierrc.json
+          - --ignore-path
+          - configs/prettierignore
+          - --write
+          - --ignore-unknown
+        language: node
+        additional_dependencies:
+          - prettier@3.9.9
+        files: '\.(cjs|css|graphql|html|js|json|jsx|md|mdx|mjs|scss|ts|tsx|ya?ml)$'
+
+      - id: markdownlint
+        name: Lint Markdown
+        entry: markdownlint-cli2
+        args:
+          - --config
+          - configs/markdownlint-cli2.yaml
+        language: node
+        additional_dependencies:
+          - markdownlint-cli2@0.23.3
+        files: '\.md$'
+        pass_filenames: false
+
+      - id: commitlint
+        name: Lint Conventional Commit message
+        entry: commitlint
+        args:
+          - --edit
+        language: node
+        additional_dependencies:
+          - "@commitlint/cli@21.2.3"
+          - "@commitlint/config-conventional@21.2.3"
+        always_run: true
+        pass_filenames: true
+        stages:
+          - commit-msg
+
+# pre-commit.ci only reads settings from this file, not from a separate
+# .pre-commit-ci.yaml — keep autofix/autoupdate behavior configured here.
+ci:
+  autofix_commit_msg: "style: apply pre-commit fixes"
+  autofix_prs: true
+  autoupdate_commit_msg: "chore(deps): update pre-commit hooks"
+  autoupdate_schedule: monthly
+  submodules: false
