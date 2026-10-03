@@ -1,0 +1,134 @@
+name: .NET Workflow
+
+on:
+  # Reusable workflow interface only (called by other workflows)
+  workflow_call:
+    inputs:
+      solution:
+        description: "Solution or project to restore, build, format-check and test (for example MyApp.slnx)"
+        required: true
+        type: string
+      configuration:
+        description: "Build configuration"
+        required: false
+        type: string
+        default: "Release"
+      global-json-file:
+        description: "global.json that pins the .NET SDK; also read to detect the test runner"
+        required: false
+        type: string
+        default: "global.json"
+      locked-restore:
+        description: >-
+          Restore with --locked-mode, so a packages.lock.json that no longer matches the
+          project fails the build. Requires lock files (RestorePackagesWithLockFile).
+        required: false
+        type: boolean
+        default: true
+      nuget-cache:
+        description: "Cache the NuGet package folder, keyed on the lock files. Requires lock files."
+        required: false
+        type: boolean
+        default: true
+      nuget-lock-files:
+        description: "Glob of lock files used as the NuGet cache key"
+        required: false
+        type: string
+        default: "**/packages.lock.json"
+      verify-format:
+        description: "Run dotnet format --verify-no-changes (whitespace, code style and analyzers)"
+        required: false
+        type: boolean
+        default: true
+      test:
+        description: "Run dotnet test"
+        required: false
+        type: boolean
+        default: true
+      runs-on:
+        description: "Runner label. Call the workflow from a matrix to cover several operating systems."
+        required: false
+        type: string
+        default: "ubuntu-latest"
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Restore, build, verify formatting and test. Warnings-as-errors and analyzer
+  # severities belong in the repository (Directory.Build.props, .editorconfig),
+  # so this workflow enforces whatever the repository declares. GitHub Actions
+  # sets CI=true, which repositories can use for ContinuousIntegrationBuild.
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build and test
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 30
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+      SOLUTION: ${{ inputs.solution }}
+      CONFIGURATION: ${{ inputs.configuration }}
+      GLOBAL_JSON: ${{ inputs.global-json-file }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: ${{ inputs.global-json-file }}
+          cache: ${{ inputs.nuget-cache }}
+          cache-dependency-path: ${{ inputs.nuget-lock-files }}
+
+      # .NET 10 runs tests on either VSTest or Microsoft.Testing.Platform, chosen by
+      # global.json, and the two take the solution differently. Read the choice
+      # rather than asking callers to repeat it, and say what was found.
+      - name: Detect test runner
+        id: detect
+        run: |
+          # jq ships on every GitHub-hosted runner. A missing or unreadable file means VSTest.
+          RUNNER=$(jq -r '.test.runner // "VSTest"' "$GLOBAL_JSON" 2>/dev/null || echo "VSTest")
+          echo "runner=$RUNNER" >> "$GITHUB_OUTPUT"
+          {
+            echo "### .NET build scope"
+            echo ""
+            echo "| Step | Running | Why |"
+            echo "|---|---|---|"
+            echo "| Locked restore | ${{ inputs.locked-restore }} | caller input |"
+            echo "| Format verification | ${{ inputs.verify-format }} | caller input |"
+            echo "| Tests | ${{ inputs.test }} | caller input |"
+            echo "| Test runner | $RUNNER | \`test.runner\` in $GLOBAL_JSON (VSTest when absent) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore
+        env:
+          LOCKED: ${{ inputs.locked-restore }}
+        run: |
+          if [ "$LOCKED" = "true" ]; then
+            dotnet restore "$SOLUTION" --locked-mode
+          else
+            dotnet restore "$SOLUTION"
+          fi
+
+      - name: Build
+        run: dotnet build "$SOLUTION" --configuration "$CONFIGURATION" --no-restore
+
+      - name: Verify formatting and code style
+        if: inputs.verify-format
+        run: dotnet format "$SOLUTION" --verify-no-changes --no-restore
+
+      - name: Test
+        if: inputs.test
+        env:
+          RUNNER: ${{ steps.detect.outputs.runner }}
+        run: |
+          if [ "$RUNNER" = "Microsoft.Testing.Platform" ]; then
+            dotnet test --solution "$SOLUTION" --configuration "$CONFIGURATION" --no-build
+          else
+            dotnet test "$SOLUTION" --configuration "$CONFIGURATION" --no-build
+          fi

@@ -9,6 +9,8 @@ unreleased products, clients or internal plans in files, commits or PRs.
 | Path                                      | What it is                                                                                                                      |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `.github/workflows/lint.yml`              | Reusable: Prettier, markdownlint, Terraform fmt/validate/docs/tflint, PR title (and optionally commits) as Conventional Commits |
+| `.github/workflows/pre-commit.yml`        | Reusable: every hook in the caller's `.pre-commit-config.yaml`, installed from a hash-locked requirements file                  |
+| `.github/workflows/dotnet.yml`            | Reusable: .NET locked restore, build, `dotnet format` verification and tests; test runner detected from `global.json`           |
 | `.github/workflows/release-please.yml`    | Reusable: release PR and changelog via the release manager GitHub App; `update-major-tag` moves `vN` to each release            |
 | `.github/workflows/pr.yml`, `release.yml` | This repository running its own workflows through local `./` references                                                         |
 | `configs/`                                | Shared Prettier and markdownlint defaults, plus the proprietary licence template for private repositories                       |
@@ -37,13 +39,16 @@ change is a change to CI in every repository that pins the current major tag.
   fallback written when a repository has no config). **Change both together.**
 - Keep jobs skippable and loud about it: a check that skips must say why in the run summary.
 - Least privilege: top-level `permissions: contents: read`, widened per job only as needed.
+- Check out with `persist-credentials: false` unless the job pushes (only the release job does).
+- Install Python tools from a hash-locked requirements file with `--require-hashes
+--only-binary :all:`; `requirements-dev.txt` is generated from `requirements-dev.in`.
 - Update `README.md` and `examples/` in the same PR as any behaviour change.
 
 ## Local checks
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-python -m pip install -r requirements-dev.txt
+python -m pip install --require-hashes --only-binary :all: -r requirements-dev.txt
 pre-commit install --install-hooks
 pre-commit run --all-files
 ```

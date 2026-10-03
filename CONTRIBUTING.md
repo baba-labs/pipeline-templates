@@ -9,20 +9,21 @@ This repository uses [pre-commit](https://pre-commit.com/) rather than platform-
 shell scripts. Hook tools run in isolated environments managed by pre-commit, so the
 same configuration is used on macOS and Windows.
 
-Create a virtual environment and install the pinned development dependency:
+Create a virtual environment and install the development tools. `requirements-dev.txt` is
+hash-locked (every package pinned with its hashes), generated from `requirements-dev.in`:
 
 ```bash
 # macOS
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements-dev.txt
+python -m pip install --require-hashes --only-binary :all: -r requirements-dev.txt
 ```
 
 ```powershell
 # Windows PowerShell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements-dev.txt
+python -m pip install --require-hashes --only-binary :all: -r requirements-dev.txt
 ```
 
 Install both the pre-commit and commit-message hooks:
@@ -51,6 +52,9 @@ The file-oriented hooks enforce:
 
 Formatting hooks update files in place. Review and stage those changes, then commit
 again. Use `pre-commit autoupdate` when intentionally updating hook versions.
+
+To change a development tool version, edit `requirements-dev.in` and regenerate the lock
+file with the `pip-compile` command in its header. Dependabot does this weekly.
 
 ## Commit messages
 

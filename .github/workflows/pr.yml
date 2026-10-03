@@ -1,7 +1,7 @@
 name: PR
 
-# This repository lints itself with its own reusable workflow, using a local
-# reference. It is the cheapest way to find out that a change here is broken
+# This repository checks itself with its own reusable workflows, using local
+# references. It is the cheapest way to find out that a change here is broken
 # before it breaks every repository that pins the tag.
 
 on:
@@ -22,27 +22,15 @@ jobs:
       contents: read
       pull-requests: read
 
+  # Contributors here work on macOS and Windows, so the hooks are proven on both.
   pre-commit:
     name: Pre-commit (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         os:
           - macos-latest
           - windows-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.13"
-          cache: pip
-          cache-dependency-path: requirements-dev.txt
-
-      - name: Install pre-commit
-        run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
-
-      - name: Run pre-commit
-        run: pre-commit run --all-files --show-diff-on-failure
+    uses: ./.github/workflows/pre-commit.yml
+    with:
+      runs-on: ${{ matrix.os }}

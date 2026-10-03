@@ -9,6 +9,8 @@ Consumers reference these rather than copying them, so a fix lands everywhere at
 | Workflow                                                     | Purpose                                                                                |
 | ------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
 | [`lint.yml`](.github/workflows/lint.yml)                     | Prettier, markdownlint, Terraform fmt / validate / docs / tflint, Conventional Commits |
+| [`pre-commit.yml`](.github/workflows/pre-commit.yml)         | Every hook in the repository's `.pre-commit-config.yaml`, over all files               |
+| [`dotnet.yml`](.github/workflows/dotnet.yml)                 | .NET locked restore, build, `dotnet format` verification and tests                     |
 | [`release-please.yml`](.github/workflows/release-please.yml) | Version bump, changelog and release PR; optionally moves the major tag                 |
 
 ## Using them
@@ -21,6 +23,14 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+
+  pre-commit:
+    uses: baba-labs/pipeline-templates/.github/workflows/pre-commit.yml@v1
+
+  dotnet:
+    uses: baba-labs/pipeline-templates/.github/workflows/dotnet.yml@v1
+    with:
+      solution: MyApp.slnx
 ```
 
 A worked example is in [`examples/pr.yml`](examples/pr.yml).
@@ -55,6 +65,56 @@ The defaults, and the reasoning behind them, are in [`configs/`](configs/README.
 
 Terraform checks skip themselves when the repository contains no `.tf` files. The run
 summary states what ran and why, so a skip is visible rather than assumed.
+
+## Pre-commit
+
+`pre-commit.yml` runs `pre-commit run --all-files` with the repository's own
+`.pre-commit-config.yaml`, so CI enforces exactly what contributors run locally. That
+includes hooks `lint.yml` has no job for, such as secret detection and actionlint.
+
+pre-commit is installed from `requirements-file` (default `requirements-dev.txt`) with
+`--require-hashes --only-binary :all:`. **The file must be hash-locked**: every package,
+including transitive ones, pinned with its hashes. Keep the top-level pins in
+`requirements-dev.in` and generate the file with:
+
+```bash
+pip-compile --generate-hashes --allow-unsafe --strip-extras --no-emit-index-url \
+  --output-file requirements-dev.txt requirements-dev.in
+```
+
+A plain `pre-commit==x.y.z` line is not enough: its dependencies would still resolve
+afresh on every run, and a package published within range would be picked up silently.
+Dependabot's `pip` ecosystem understands the `.in` / `.txt` pair.
+
+Inputs: `python-version` (default `3.13`), `requirements-file`, `skip-hooks` (a
+comma-separated list passed to pre-commit's `SKIP`, for hooks another job already
+covers) and `runs-on` (default `ubuntu-latest`; call the workflow from a matrix to cover
+several operating systems). Skipped hooks are listed in the run summary.
+
+## .NET
+
+`dotnet.yml` restores, builds, verifies formatting and runs tests for one solution or
+project (`solution`, required). Warnings-as-errors, analyzers and code style belong in the
+repository (`Directory.Build.props`, `.editorconfig`); the workflow enforces whatever the
+repository declares. GitHub Actions sets `CI=true`, which a repository can use to switch on
+`ContinuousIntegrationBuild`.
+
+| Input                   | Default                 | What it does                                                       |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------ |
+| `configuration`         | `Release`               | Build and test configuration                                       |
+| `global-json-file`      | `global.json`           | Pins the SDK; also read to detect the test runner                  |
+| `locked-restore`        | `true`                  | `dotnet restore --locked-mode`; a stale `packages.lock.json` fails |
+| `nuget-cache`           | `true`                  | Caches NuGet packages, keyed on `nuget-lock-files`                 |
+| `nuget-lock-files`      | `**/packages.lock.json` | Lock files used as the cache key                                   |
+| `verify-format`, `test` | `true`                  | `dotnet format --verify-no-changes`; `dotnet test`                 |
+| `runs-on`               | `ubuntu-latest`         | Runner label; use a matrix in the caller for several systems       |
+
+`locked-restore` and `nuget-cache` need lock files (`RestorePackagesWithLockFile`). Turn
+both off for a repository without them.
+
+The test runner is detected, not configured: when `global.json` sets `test.runner` to
+`Microsoft.Testing.Platform` the workflow runs `dotnet test --solution …`, otherwise
+`dotnet test …` (VSTest). The run summary records what it found and which steps ran.
 
 ## Conventional Commits
 
